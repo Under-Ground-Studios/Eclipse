@@ -24,6 +24,9 @@ void MainThread()
     Debug::InstallVectoredHandler();
     Debug::Log("MainThread: process-wide VEH installed (logs [VEH] lines for any hardware fault anywhere in the process, not just inside Debug::Guard calls)");
 
+    Debug::InstallTopLevelRecoveryFilter();
+    Debug::Log("MainThread: top-level SetUnhandledExceptionFilter recovery backstop installed (catches faults Guard()'s own __except somehow misses -- see SafeCall.hpp)");
+
     // Communication::Initialize() spins up TcpServer() on its own detached
     // thread and returns immediately -- but if socket setup inside TcpServer
     // throws (WSAStartup/getaddrinfo/socket() are all capable of raising in

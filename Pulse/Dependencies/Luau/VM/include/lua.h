@@ -27,6 +27,25 @@ struct RobloxExtraSpace
     std::weak_ptr<uintptr_t> Script; // 0x78
     char Pad5[0x8];
     std::weak_ptr<uintptr_t> Actor; // 0x90
+
+    // SIZE FIX (found 2026-08-27, disassembly-derived, not guessed): the
+    // real thread-init code Roblox runs on cb.userthread allocates its
+    // userdata object with `mov ecx, 0xB0` immediately before the alloc
+    // call -- 176 bytes. Every field above (through Actor) accounts for
+    // only 0xA0 (160) bytes -- this struct was 0x10 bytes short of
+    // Roblox's real object size. Whatever occupies that trailing 0x10 is
+    // still unknown (not claiming a field here), but under-allocating
+    // and under-copying relative to what Roblox's own code reads/writes
+    // against the same object is a textbook out-of-bounds-on-the-heap
+    // setup: matches the delayed, heap-layout-dependent corruption
+    // crashes chased all session (variable delay, different crash sites,
+    // garbage pointers sharing bytes with real adjacent heap data), and
+    // plausibly the immediate cb.userthread crash too, since it reads
+    // ParentThread->userdata as a full 0xB0-byte object before copying
+    // it into the new thread's. Padding-only fix: keeps
+    // AllocExtraSpace/memcpy's sizeof() correct without fabricating a
+    // field we haven't actually identified.
+    char Pad6[0x10];
 };
 
 // option for multiple returns in `lua_pcall' and `lua_call'

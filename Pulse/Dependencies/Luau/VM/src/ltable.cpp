@@ -50,6 +50,12 @@ const LuaNode luaH_dummynode = {
     {{NULL}, {0}, LUA_TNIL, 0} // key
 };
 
+// REVERTED (2026-08-28): same experiment as lobject.h's luaO_nilobject,
+// same result -- swapping to our own statically-linked luaH_dummynode
+// changed nothing about the Task.resume crash (identical RCX/RDX every
+// run, before and after). User confirms every offset in this project,
+// this one included, is verified correct. Reverted to Roblox's live
+// address rather than keep an unproven divergence.
 #define dummynode reinterpret_cast<LuaNode*>(Offsets::Luau::LuaH_DummyNode)
 
 // hash is always reduced mod 2^k

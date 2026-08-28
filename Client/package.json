@@ -1,6 +1,6 @@
 {
   "name": "pulse-executor-client",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "PulseExecutor — Lua execution client for Roblox",
   "main": "dist/main/main.js",
   "private": true,

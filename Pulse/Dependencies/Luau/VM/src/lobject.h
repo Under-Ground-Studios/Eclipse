@@ -610,6 +610,15 @@ typedef struct LuauObject
 #define twoto(x) ((int)(1 << (x)))
 #define sizenode(t) (twoto((t)->lsizenode))
 
+// REVERTED (2026-08-28): tried pointing this at our own statically-linked
+// luaO_nilobject_ instead of Offsets::Luau::LuaO_NilObject (Roblox's live
+// address), on the theory the hardcoded RVA was stale. Confirmed live:
+// the user states every offset in this project, including this one, is
+// verified correct -- and the Task.resume crash signature (identical
+// RCX/RDX across runs) was completely unchanged after this swap, which is
+// itself evidence the address was never the problem. Reverted rather than
+// carry an unproven architectural divergence (Roblox's own code may rely
+// on every live table sharing this exact sentinel address).
 #define luaO_nilobject reinterpret_cast<TValue*>(Offsets::Luau::LuaO_NilObject)
 
 LUAI_DATA const TValue luaO_nilobject_;
