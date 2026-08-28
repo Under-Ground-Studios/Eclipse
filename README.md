@@ -1,5 +1,7 @@
 # Eclipse
 
+<img width="957" height="540" alt="image" src="https://github.com/user-attachments/assets/d92a6a7a-e134-43ee-956a-1f2143242b9b" />
+
 Roblox script executor. Portable Electron client (`PulseExecutor.exe`) injects a native
 C++ DLL into `RobloxPlayerBeta.exe`. The DLL hooks `IDXGISwapChain::Present`, locates the
 game's live `lua_State` through `ScriptContext`, and runs scripts through a self-contained
