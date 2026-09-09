@@ -9,13 +9,24 @@
   </head>
   <body>
     <div id="app">
+      <div class="splash" id="splash" role="status" aria-live="polite" aria-label="Loading PulseExecutor">
+        <div class="splash-glow"></div>
+        <div class="splash-inner">
+          <svg class="splash-logo" viewBox="0 0 24 24" aria-hidden="true">
+            <path class="splash-logo-shell" d="M12 2.5 3 8v8l9 5.5 9-5.5V8z" />
+            <path class="splash-logo-pulse" d="M8 11.5h3l1.4-4 3.6 9 1.4-5h2" />
+          </svg>
+          <div class="splash-name">PulseExecutor</div>
+          <div class="splash-tag" id="splash-tag">Preparing workspace</div>
+          <div class="splash-bar" aria-hidden="true"><div class="splash-bar-fill"></div></div>
+        </div>
+      </div>
+
       <div class="shell">
-        <!-- Title bar -->
         <div class="titlebar" id="titlebar">
           <div class="titlebar-left">
             <svg class="logo" viewBox="0 0 24 24"><path d="M12 2.5 3 8v8l9 5.5 9-5.5V8z" /><path d="M8 11.5h3l1.4-4 3.6 9 1.4-5h2" /></svg>
             <span class="app-title">PulseExecutor</span>
-            <span class="version-tag">v1.0.0</span>
           </div>
 
           <button class="palette-trigger" id="palette-trigger" title="Command palette">
@@ -37,9 +48,7 @@
           </div>
         </div>
 
-        <!-- Body: sidebar + workspace -->
         <div class="body-split">
-          <!-- Sidebar -->
           <div class="sidebar">
             <div class="sidebar-search">
               <svg viewBox="0 0 14 14"><circle cx="6" cy="6" r="4" /><path d="M9.2 9.2 12 12" /></svg>
@@ -80,7 +89,6 @@
             </div>
           </div>
 
-          <!-- Workspace -->
           <div class="workspace">
             <div class="tabbar">
               <div class="tabs" id="tabs"></div>
@@ -88,17 +96,10 @@
                 <svg viewBox="0 0 12 12"><path d="M6 1v10M1 6h10" /></svg>
               </button>
               <div class="tabbar-spacer"></div>
-              <button class="tabbar-run" id="btn-run" title="Run script (Ctrl+Enter)">
+              <button class="tabbar-run" id="btn-run" title="Inject first to run scripts" disabled>
                 <svg viewBox="0 0 16 16" fill="currentColor" stroke="none"><path d="M4.5 2.8v10.4l9-5.2-9-5.2z" /></svg>
                 <span>Run</span>
               </button>
-            </div>
-
-            <div class="breadcrumb">
-              <svg class="breadcrumb-icon" viewBox="0 0 14 14"><path d="M3 2.5h5L11 6v5.5H3z" /></svg>
-              <span id="breadcrumb-path">Workspace</span>
-              <span class="breadcrumb-sep">/</span>
-              <span id="breadcrumb-file">Script 1</span>
             </div>
 
             <div class="editor-wrap">
@@ -107,47 +108,44 @@
           </div>
         </div>
 
-        <!-- Status bar -->
-        <div class="statusbar">
-          <span id="sb-filename">Script 1</span>
-          <div class="sb-flex"></div>
-          <span id="sb-position">Ln 1, Col 1</span>
-          <span class="sb-sep"></span>
-          <span id="sb-indent">Spaces: 4</span>
-          <span class="sb-sep"></span>
-          <span>UTF-8</span>
-          <span class="sb-sep"></span>
-          <span>Lua 5.1</span>
-        </div>
-
-        <!-- Bottom action bar — full width, sits under both the sidebar and workspace -->
-        <div class="actionbar">
+        <div class="footer">
           <div class="inject-cluster">
-            <input class="process-input" id="process-input" type="text" placeholder="RobloxPlayerBeta.exe" list="process-options" spellcheck="false" />
+            <span class="process-live-dot" id="process-live-dot" title="Not detected"></span>
+            <input class="process-input" id="process-input" type="text" placeholder="RobloxPlayerBeta.exe" list="process-options" spellcheck="false" aria-label="Target process" />
             <datalist id="process-options">
               <option value="RobloxPlayerBeta.exe"></option>
               <option value="RobloxStudioBeta.exe"></option>
             </datalist>
-            <span class="process-live-dot" id="process-live-dot" title="Not detected"></span>
-            <button class="link-btn" id="btn-inject" title="Inject">
+            <span class="process-hint" id="process-hint">Not detected</span>
+            <button class="inject-btn" id="btn-inject" title="Start the target process first" aria-label="Inject" disabled>
               <svg viewBox="0 0 16 16"><path d="M6.3 9.7 9.7 6.3M4.3 11.7a3.2 3.2 0 0 1 0-4.5l1.9-1.9a3.2 3.2 0 0 1 4.5 0M11.7 4.3a3.2 3.2 0 0 1 0 4.5l-1.9 1.9a3.2 3.2 0 0 1-4.5 0" /></svg>
+              <span id="inject-label">Inject</span>
             </button>
             <span class="inject-status" id="inject-status">Disconnected</span>
           </div>
 
-          <div class="actionbar-spacer"></div>
+          <div class="footer-spacer"></div>
 
-          <button class="action-icon" id="btn-clear" title="Clear script">
+          <button class="footer-btn" id="btn-console" title="Open console" aria-label="Open console">
+            <svg viewBox="0 0 16 16"><path d="M2 3.5h12M2.5 3.5v8a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1v-8" /><path d="M5 7.2l2 1.4-2 1.4M8.5 10.2H11" /></svg>
+            <span>Console</span>
+          </button>
+          <button class="action-icon" id="btn-clear" title="Clear script" aria-label="Clear script">
             <svg viewBox="0 0 16 16"><path d="M3.5 5h9" /><path d="M6.5 5V3.3a1 1 0 0 1 1-1h1a1 1 0 0 1 1 1V5" /><path d="M4.5 5l.6 8.2a1 1 0 0 0 1 .8h3.8a1 1 0 0 0 1-.8L11.5 5" /><path d="M6.7 7.5v4M9.3 7.5v4" /></svg>
           </button>
-          <span class="actionbar-sep"></span>
-          <button class="action-icon" id="btn-settings" title="Settings">
+          <button class="action-icon" id="btn-settings" title="Settings (Ctrl+,)" aria-label="Settings">
             <svg viewBox="0 0 16 16"><path d="M2 4h7M12 4h2" /><circle cx="10" cy="4" r="1.3" fill="currentColor" stroke="none" /><path d="M2 8h2M7 8h7" /><circle cx="5" cy="8" r="1.3" fill="currentColor" stroke="none" /><path d="M2 12h7M12 12h2" /><circle cx="10" cy="12" r="1.3" fill="currentColor" stroke="none" /></svg>
           </button>
+
+          <span class="footer-sep"></span>
+          <span class="footer-meta" id="sb-filename">Script 1</span>
+          <span class="footer-sep"></span>
+          <span class="footer-meta" id="sb-position">Ln 1, Col 1</span>
+          <span class="footer-sep"></span>
+          <span class="footer-meta">Luau</span>
         </div>
       </div>
 
-      <!-- Command palette -->
       <div class="palette-overlay" id="palette-overlay" data-open="false">
         <div class="palette">
           <div class="palette-input-row">
@@ -159,7 +157,6 @@
         </div>
       </div>
 
-      <!-- Settings modal -->
       <div class="modal-overlay" id="settings-overlay" data-open="false">
         <div class="modal modal-settings">
           <div class="modal-header">
@@ -193,7 +190,6 @@
             </div>
 
             <div class="settings-panes">
-              <!-- Editor -->
               <div class="settings-pane active" data-pane="editor">
                 <div class="field">
                   <label>Font size</label>
@@ -217,7 +213,6 @@
                 </div>
               </div>
 
-              <!-- Appearance -->
               <div class="settings-pane" data-pane="appearance">
                 <div class="field field-column">
                   <label>Accent color</label>
@@ -229,7 +224,6 @@
                 </div>
               </div>
 
-              <!-- Behavior -->
               <div class="settings-pane" data-pane="behavior">
                 <div class="field field-toggle">
                   <label for="confirm-delete-toggle">Confirm before deleting scripts</label>
@@ -242,24 +236,43 @@
                 <button class="settings-reset" id="btn-settings-reset">Reset to defaults</button>
               </div>
 
-              <!-- Shortcuts -->
               <div class="settings-pane" data-pane="shortcuts">
                 <div class="shortcut-row"><span>Command palette</span><kbd>Ctrl K</kbd></div>
                 <div class="shortcut-row"><span>Run script</span><kbd>Ctrl Enter</kbd></div>
+                <div class="shortcut-row"><span>Save to Workspace</span><kbd>Ctrl S</kbd></div>
                 <div class="shortcut-row"><span>New tab</span><kbd>Ctrl T</kbd></div>
                 <div class="shortcut-row"><span>Close tab</span><kbd>Ctrl W</kbd></div>
+                <div class="shortcut-row"><span>Next / previous tab</span><kbd>Ctrl Tab</kbd></div>
+                <div class="shortcut-row"><span>Settings</span><kbd>Ctrl ,</kbd></div>
                 <div class="shortcut-row"><span>Close / cancel</span><kbd>Esc</kbd></div>
                 <div class="shortcut-row"><span>Import script file</span><span class="shortcut-hint">Drag a .lua file onto the editor</span></div>
               </div>
 
-              <!-- About -->
               <div class="settings-pane" data-pane="about">
                 <div class="about-block">
+                  <svg class="about-logo" viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M12 2.5 3 8v8l9 5.5 9-5.5V8z" />
+                    <path d="M8 11.5h3l1.4-4 3.6 9 1.4-5h2" />
+                  </svg>
                   <div class="about-title">PulseExecutor</div>
-                  <div class="about-version">v1.0.0</div>
+                  <div class="about-version">v1.0.1</div>
+                  <div class="about-copy">Luau execution client</div>
                 </div>
               </div>
             </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-overlay" id="confirm-overlay" data-open="false">
+        <div class="modal modal-confirm" role="dialog" aria-modal="true" aria-labelledby="confirm-title">
+          <div class="modal-header">
+            <span id="confirm-title">Delete script</span>
+          </div>
+          <p class="confirm-message" id="confirm-message"></p>
+          <div class="confirm-actions">
+            <button type="button" class="confirm-cancel" id="confirm-cancel">Cancel</button>
+            <button type="button" class="confirm-ok" id="confirm-ok">Delete</button>
           </div>
         </div>
       </div>

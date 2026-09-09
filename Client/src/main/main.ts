@@ -221,6 +221,10 @@ ipcMain.handle(IpcChannel.ProcessCheck, (_e, processName: string) => isProcessRu
 
 // ---------- Injector ----------
 
+ipcMain.on(IpcChannel.ConsoleReveal, () => {
+  revealConsole(mainWindow);
+});
+
 ipcMain.handle(IpcChannel.InjectorRun, async (_e, processName: string) => {
   revealConsole(mainWindow);
   sendLog("info", `Injecting into process "${processName}"...`);

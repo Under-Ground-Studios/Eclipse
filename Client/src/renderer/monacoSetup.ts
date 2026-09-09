@@ -11,44 +11,53 @@ self.MonacoEnvironment = {
   },
 };
 
-// Apple-like dark palette, mapped onto Monaco's token scopes.
-monaco.editor.defineTheme("pulse-dark", {
-  base: "vs-dark",
-  inherit: true,
-  rules: [
-    { token: "comment", foreground: "6c6c74", fontStyle: "italic" },
-    { token: "keyword", foreground: "ff7ab2" },
-    { token: "string", foreground: "ff8170" },
-    { token: "number", foreground: "d19a66" },
-    { token: "operator", foreground: "9a9aa2" },
-    { token: "identifier", foreground: "eeeef0" },
-    { token: "delimiter", foreground: "9a9aa2" },
-    { token: "predefined", foreground: "66d9ef" },
-  ],
-  colors: {
-    "editor.background": "#17171a",
-    "editor.foreground": "#eeeef0",
-    "editorLineNumber.foreground": "#4a4a52",
-    "editorLineNumber.activeForeground": "#9a9aa2",
-    "editor.selectionBackground": "#0a84ff33",
-    "editor.inactiveSelectionBackground": "#0a84ff1a",
-    "editor.lineHighlightBackground": "#ffffff08",
-    "editorCursor.foreground": "#0a84ff",
-    "editorWhitespace.foreground": "#2a2a30",
-    "editorIndentGuide.background": "#242429",
-    "editorIndentGuide.activeBackground": "#38383f",
-    "scrollbarSlider.background": "#ffffff1a",
-    "scrollbarSlider.hoverBackground": "#ffffff28",
-    "editorWidget.background": "#1c1c20",
-    "editorWidget.border": "#ffffff12",
-    "editorSuggestWidget.background": "#1c1c20",
-    "editorSuggestWidget.border": "#ffffff12",
-    "editorSuggestWidget.selectedBackground": "#0a84ff26",
-    "editorHoverWidget.background": "#1c1c20",
-    "editorHoverWidget.border": "#ffffff12",
-    "minimap.background": "#17171a",
-  },
-});
+function definePulseTheme(accent = "#3f8cff"): void {
+  const hex = accent.replace("#", "");
+  monaco.editor.defineTheme("pulse-dark", {
+    base: "vs-dark",
+    inherit: true,
+    rules: [
+      { token: "comment", foreground: "6c6c74", fontStyle: "italic" },
+      { token: "keyword", foreground: "ff7ab2" },
+      { token: "string", foreground: "ff8170" },
+      { token: "number", foreground: "d19a66" },
+      { token: "operator", foreground: "9a9aa2" },
+      { token: "identifier", foreground: "eeeef0" },
+      { token: "delimiter", foreground: "9a9aa2" },
+      { token: "predefined", foreground: "66d9ef" },
+    ],
+    colors: {
+      "editor.background": "#16171a",
+      "editor.foreground": "#eeeef0",
+      "editorLineNumber.foreground": "#4a4a52",
+      "editorLineNumber.activeForeground": "#9a9aa2",
+      "editor.selectionBackground": `#${hex}33`,
+      "editor.inactiveSelectionBackground": `#${hex}1a`,
+      "editor.lineHighlightBackground": "#ffffff08",
+      "editorCursor.foreground": `#${hex}`,
+      "editorWhitespace.foreground": "#2a2a30",
+      "editorIndentGuide.background": "#242429",
+      "editorIndentGuide.activeBackground": "#38383f",
+      "scrollbarSlider.background": "#ffffff1a",
+      "scrollbarSlider.hoverBackground": "#ffffff28",
+      "editorWidget.background": "#1c1c20",
+      "editorWidget.border": "#ffffff12",
+      "editorSuggestWidget.background": "#1c1c20",
+      "editorSuggestWidget.border": "#ffffff12",
+      "editorSuggestWidget.selectedBackground": `#${hex}26`,
+      "editorHoverWidget.background": "#1c1c20",
+      "editorHoverWidget.border": "#ffffff12",
+      "minimap.background": "#16171a",
+    },
+  });
+}
+
+definePulseTheme();
+
+export function applyEditorAccent(accent: string): void {
+  definePulseTheme(accent);
+  monaco.editor.setTheme("pulse-dark");
+}
 
 // Globals the runtime plans to expose (mirrors
 // Environment::GetPlannedFunctionNames / GetPlannedGameObjectNames on the
