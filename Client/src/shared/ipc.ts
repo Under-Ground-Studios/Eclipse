@@ -22,6 +22,8 @@ export const IpcChannel = {
 
   ConsoleToggleCollapse: "console:toggle-collapse",
   ConsoleClose: "console:close",
+  ConsoleReveal: "console:reveal",
+  ConsoleClear: "console:clear",
   ConsoleState: "console:state",
   ConsoleReady: "console:ready",
   ConsoleHistory: "console:history",
@@ -98,6 +100,8 @@ export interface PulseBridge {
 
   consoleToggleCollapse(): void;
   consoleClose(): void;
+  consoleReveal(): void;
+  consoleClear(): void;
   onConsoleState(cb: (state: ConsoleWindowState) => void): () => void;
 
   // The console window is a separate BrowserWindow that loads its own

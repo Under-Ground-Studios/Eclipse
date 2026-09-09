@@ -98,11 +98,19 @@ function createWindow(anchor: BrowserWindow | null): void {
   });
 }
 
+export function clearConsoleHistory(): void {
+  history.length = 0;
+  if (win && !win.isDestroyed()) {
+    win.webContents.send(IpcChannel.ConsoleHistory, []);
+  }
+}
+
 export function initConsoleWindow(): void {
   ipcMain.on(IpcChannel.ConsoleToggleCollapse, () => toggleCollapse());
   ipcMain.on(IpcChannel.ConsoleClose, () => {
     win?.hide();
   });
+  ipcMain.on(IpcChannel.ConsoleClear, () => clearConsoleHistory());
   // Fired by console.ts once its onLog listener is actually registered —
   // reply with everything logged so far so the backlog isn't silently gone.
   ipcMain.on(IpcChannel.ConsoleReady, (event) => {

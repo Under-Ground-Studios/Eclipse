@@ -33,6 +33,8 @@ const bridge: PulseBridge = {
 
   consoleToggleCollapse: () => ipcRenderer.send(IpcChannel.ConsoleToggleCollapse),
   consoleClose: () => ipcRenderer.send(IpcChannel.ConsoleClose),
+  consoleReveal: () => ipcRenderer.send(IpcChannel.ConsoleReveal),
+  consoleClear: () => ipcRenderer.send(IpcChannel.ConsoleClear),
   onConsoleState: (cb: (state: ConsoleWindowState) => void) => subscribe(IpcChannel.ConsoleState, cb),
 
   consoleReady: () => ipcRenderer.send(IpcChannel.ConsoleReady),

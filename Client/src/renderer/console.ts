@@ -66,8 +66,7 @@ window.pulse.consoleReady();
 filterInput.addEventListener("input", render);
 
 clearBtn.addEventListener("click", () => {
-  entries.length = 0;
-  body.innerHTML = "";
+  window.pulse.consoleClear();
 });
 
 collapseBtn.addEventListener("click", () => window.pulse.consoleToggleCollapse());

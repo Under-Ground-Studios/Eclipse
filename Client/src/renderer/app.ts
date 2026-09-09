@@ -1,7 +1,9 @@
-import { monaco, registerLuaCompletions } from "./monacoSetup";
+import { applyEditorAccent, monaco, registerLuaCompletions } from "./monacoSetup";
 import type { ConnectionState, PipeStatus, WindowState } from "../shared/ipc";
 
 registerLuaCompletions();
+
+const splashStarted = performance.now();
 
 // ---------------------------------------------------------------------
 // Tab model
@@ -95,6 +97,38 @@ function showToast(level: "info" | "success" | "warn" | "error", message: string
   window.setTimeout(dismiss, durationMs);
 }
 
+let confirmResolver: ((value: boolean) => void) | null = null;
+
+function askConfirm(message: string, confirmLabel = "Delete"): Promise<boolean> {
+  const overlay = document.getElementById("confirm-overlay");
+  const msg = document.getElementById("confirm-message");
+  const ok = document.getElementById("confirm-ok") as HTMLButtonElement | null;
+  if (!overlay || !msg || !ok) return Promise.resolve(window.confirm(message));
+
+  msg.textContent = message;
+  ok.textContent = confirmLabel;
+  overlay.dataset.open = "true";
+  ok.focus();
+
+  return new Promise((resolve) => {
+    confirmResolver = resolve;
+  });
+}
+
+function settleConfirm(value: boolean): void {
+  const overlay = document.getElementById("confirm-overlay");
+  if (overlay) overlay.dataset.open = "false";
+  const resolve = confirmResolver;
+  confirmResolver = null;
+  resolve?.(value);
+}
+
+document.getElementById("confirm-ok")?.addEventListener("click", () => settleConfirm(true));
+document.getElementById("confirm-cancel")?.addEventListener("click", () => settleConfirm(false));
+document.getElementById("confirm-overlay")?.addEventListener("click", (e) => {
+  if (e.target === e.currentTarget) settleConfirm(false);
+});
+
 // ---------------------------------------------------------------------
 // Editor
 // ---------------------------------------------------------------------
@@ -104,7 +138,7 @@ const editor = monaco.editor.create(editorHost, {
   theme: "pulse-dark",
   language: "lua",
   automaticLayout: true,
-  fontFamily: '"Cascadia Code", "SF Mono", Consolas, monospace',
+  fontFamily: '"Geist Mono", "Cascadia Code", "SF Mono", Consolas, monospace',
   fontSize: settings.fontSize,
   fontLigatures: true,
   lineHeight: 21,
@@ -135,8 +169,10 @@ function createTab(name: string, content: string, activate = true, originId: str
   const tab: Tab = { id: newTabId(), name, model, viewState: null, dirty: false, originId };
 
   model.onDidChangeContent(() => {
-    tab.dirty = true;
-    updateTabElement(tab);
+    if (!tab.dirty) {
+      tab.dirty = true;
+      updateTabElement(tab);
+    }
     scheduleSave();
   });
 
@@ -180,6 +216,7 @@ function closeTab(id: string): void {
       syncEntryContent(removed.originId, content);
     } else {
       archiveToLibrary(removed.name, content);
+      showToast("info", `Saved "${removed.name}" to Workspace`);
     }
   }
 
@@ -275,6 +312,7 @@ function updateTabElement(tab: Tab): void {
   const el = tabElements.get(tab.id);
   if (!el) return;
   el.classList.toggle("active", tab.id === activeTabId);
+  el.classList.toggle("dirty", tab.dirty);
   const nameEl = el.querySelector<HTMLElement>(".tab-name");
   if (nameEl && nameEl.textContent !== tab.name) nameEl.textContent = tab.name;
 }
@@ -350,19 +388,15 @@ document.getElementById("tab-add")!.addEventListener("click", () => {
 window.addEventListener("resize", () => updateTabIndicator());
 
 // ---------------------------------------------------------------------
-// Breadcrumb + status bar
+// Status (filename + cursor) — lives in the footer
 // ---------------------------------------------------------------------
 
-const breadcrumbFile = document.getElementById("breadcrumb-file")!;
 const sbFilename = document.getElementById("sb-filename")!;
 const sbPosition = document.getElementById("sb-position")!;
-const sbIndent = document.getElementById("sb-indent")!;
 
 function updateBreadcrumb(): void {
   const tab = tabs.find((t) => t.id === activeTabId);
-  const name = tab?.name ?? "";
-  breadcrumbFile.textContent = name;
-  sbFilename.textContent = name;
+  sbFilename.textContent = tab?.name ?? "";
 }
 
 function updateStatusPosition(): void {
@@ -370,7 +404,6 @@ function updateStatusPosition(): void {
   if (!pos) return;
   sbPosition.textContent = `Ln ${pos.lineNumber}, Col ${pos.column}`;
 }
-sbIndent.textContent = "Spaces: 4";
 
 editor.onDidChangeCursorPosition(updateStatusPosition);
 
@@ -386,7 +419,11 @@ function scheduleSave(): void {
 
 function persistTabs(): void {
   try {
-    const data = tabs.map((t) => ({ name: t.name, content: t.model.getValue() }));
+    const data = tabs.map((t) => ({
+      name: t.name,
+      content: t.model.getValue(),
+      originId: t.originId,
+    }));
     localStorage.setItem(STORAGE_TABS, JSON.stringify({ tabs: data, active: tabs.findIndex((t) => t.id === activeTabId) }));
   } catch {
     /* storage unavailable — non-fatal */
@@ -398,15 +435,35 @@ function restoreTabs(): void {
   try {
     const raw = localStorage.getItem(STORAGE_TABS);
     if (!raw) throw new Error("empty");
-    const parsed = JSON.parse(raw) as { tabs: Array<{ name: string; content: string }>; active: number };
+    const parsed = JSON.parse(raw) as {
+      tabs: Array<{ name: string; content: string; originId?: string | null }>;
+      active: number;
+    };
     if (!Array.isArray(parsed.tabs) || parsed.tabs.length === 0) throw new Error("empty");
 
-    for (const t of parsed.tabs) createTab(t.name, t.content, false);
+    for (const t of parsed.tabs) createTab(t.name, t.content, false, t.originId ?? null);
     const activeIdx = Math.min(Math.max(parsed.active, 0), tabs.length - 1);
     switchTab(tabs[activeIdx].id);
   } catch {
     createTab("Script 1", DEFAULT_SCRIPT);
   }
+}
+
+function saveActiveTab(): void {
+  const tab = tabs.find((t) => t.id === activeTabId);
+  if (!tab) return;
+  const content = tab.model.getValue();
+  if (tab.originId) {
+    syncEntryContent(tab.originId, content);
+  } else {
+    archiveToLibrary(tab.name, content);
+    tab.originId = library[0]?.id ?? null;
+    renderLibrary();
+  }
+  tab.dirty = false;
+  updateTabElement(tab);
+  persistTabs();
+  showToast("success", `Saved "${tab.name}"`);
 }
 
 // ---------------------------------------------------------------------
@@ -568,9 +625,9 @@ function buildTreeItem(entry: LibraryEntry): HTMLElement {
   del.className = "tree-item-action";
   del.title = "Delete";
   del.innerHTML = '<svg viewBox="0 0 12 12"><path d="M2 3h8M4.5 3V1.8h3V3M3 3l.6 7.2h4.8L9 3"/></svg>';
-  del.addEventListener("click", (e) => {
+  del.addEventListener("click", async (e) => {
     e.stopPropagation();
-    if (settings.confirmDelete && !confirm(`Delete "${entry.name}"? This can't be undone.`)) return;
+    if (settings.confirmDelete && !(await askConfirm(`Delete "${entry.name}"? This can't be undone.`))) return;
     library = library.filter((l) => l.id !== entry.id);
     persistLibrary();
     renderLibrary();
@@ -656,7 +713,7 @@ document.getElementById("tree-selection-run")!.addEventListener("click", async (
       `${okCount}/${selected.length} selected script${selected.length > 1 ? "s" : ""} queued`
     );
   } finally {
-    runBtn.disabled = false;
+    refreshActionState();
   }
 });
 
@@ -763,6 +820,7 @@ function applyAccent(hex: string): void {
   accentGrid.querySelectorAll<HTMLElement>(".accent-swatch").forEach((el) => {
     el.classList.toggle("active", el.dataset.hex?.toLowerCase() === hex.toLowerCase());
   });
+  applyEditorAccent(hex);
 }
 
 function buildAccentGrid(): void {
@@ -884,6 +942,9 @@ buildAccentGrid();
 
 const linkBtn = document.getElementById("btn-inject") as HTMLButtonElement;
 const injectStatus = document.getElementById("inject-status")!;
+const injectLabel = document.getElementById("inject-label")!;
+const processHint = document.getElementById("process-hint")!;
+const treeSelectionRun = document.getElementById("tree-selection-run") as HTMLButtonElement;
 
 const STATE_LABEL: Record<ConnectionState, string> = {
   disconnected: "Disconnected",
@@ -892,11 +953,59 @@ const STATE_LABEL: Record<ConnectionState, string> = {
   error: "Connection error",
 };
 
+let lastStatus: PipeStatus = { state: "disconnected", messagesSent: 0, messagesReceived: 0 };
+let processLive = false;
+let injecting = false;
+
+function refreshActionState(): void {
+  const connected = lastStatus.state === "connected";
+  const connecting = lastStatus.state === "connecting" || injecting;
+  const stateClass =
+    injecting && lastStatus.state === "disconnected"
+      ? "connecting"
+      : lastStatus.state !== "disconnected"
+        ? lastStatus.state
+        : "";
+
+  linkBtn.className = "inject-btn" + (stateClass ? ` ${stateClass}` : "");
+  injectStatus.className = "inject-status" + (stateClass ? ` ${stateClass}` : "");
+  injectStatus.textContent = injecting && lastStatus.state !== "connected" ? "Injecting…" : STATE_LABEL[lastStatus.state];
+
+  const run = document.getElementById("btn-run") as HTMLButtonElement | null;
+  if (run) {
+    run.disabled = !connected || injecting;
+    run.title = connected ? "Run script (Ctrl+Enter)" : "Inject first to run scripts";
+  }
+  if (treeSelectionRun) treeSelectionRun.disabled = !connected || injecting;
+
+  if (connected) {
+    injectLabel.textContent = "Disconnect";
+    linkBtn.disabled = injecting;
+    linkBtn.title = "Disconnect";
+    linkBtn.setAttribute("aria-label", "Disconnect");
+    processHint.textContent = "Attached";
+    processHint.classList.add("live");
+  } else if (connecting) {
+    injectLabel.textContent = "Injecting…";
+    linkBtn.disabled = true;
+    linkBtn.title = "Injecting…";
+    linkBtn.setAttribute("aria-label", "Injecting");
+    processHint.textContent = processLive ? "Running" : "Not detected";
+    processHint.classList.toggle("live", processLive);
+  } else {
+    const retry = lastStatus.state === "error";
+    injectLabel.textContent = retry ? "Retry" : "Inject";
+    linkBtn.disabled = !processLive;
+    linkBtn.title = processLive ? (retry ? "Retry inject" : "Inject") : `${targetProcessName()} not detected`;
+    linkBtn.setAttribute("aria-label", retry ? "Retry" : "Inject");
+    processHint.textContent = processLive ? "Running" : "Not detected";
+    processHint.classList.toggle("live", processLive);
+  }
+}
+
 function applyStatus(status: PipeStatus): void {
-  linkBtn.className = "link-btn" + (status.state !== "disconnected" ? ` ${status.state}` : "");
-  linkBtn.title = status.state === "connected" ? "Disconnect" : "Inject";
-  injectStatus.className = "inject-status" + (status.state !== "disconnected" ? ` ${status.state}` : "");
-  injectStatus.textContent = STATE_LABEL[status.state];
+  lastStatus = status;
+  refreshActionState();
 }
 
 window.pulse.onStatus(applyStatus);
@@ -919,8 +1028,10 @@ async function pollProcessLive(): Promise<void> {
   const name = targetProcessName();
   try {
     const running = await window.pulse.isProcessRunning(name);
+    processLive = running;
     processLiveDot.classList.toggle("live", running);
     processLiveDot.title = running ? `${name} is running` : `${name} not detected`;
+    refreshActionState();
   } catch {
     /* ignore transient errors */
   }
@@ -946,7 +1057,7 @@ async function runScriptCode(code: string, label: string): Promise<boolean> {
 
   const status = await window.pulse.getStatus();
   if (status.state !== "connected") {
-    localLog("error", `Engine not reachable. Status: ${status.state}. Click 'Link/Inject' first.`);
+    localLog("error", `Engine not reachable. Status: ${status.state}. Click Inject first.`);
     if (status.lastError) localLog("error", `Connection error: ${status.lastError}`);
     return false;
   }
@@ -979,7 +1090,7 @@ btnRun.addEventListener("click", async () => {
     const ok = await runScriptCode(activeTab.model.getValue(), activeTab.name);
     showToast(ok ? "success" : "error", ok ? "Script queued" : "Failed to send script");
   } finally {
-    btnRun.disabled = false;
+    refreshActionState();
   }
 });
 
@@ -994,12 +1105,19 @@ btnClear.addEventListener("click", () => {
 // to inject + auto-connect + fire pinned Auto Execute scripts; click again
 // while connected to disconnect. One control instead of two.
 linkBtn.addEventListener("click", async () => {
-  linkBtn.disabled = true;
+  if (injecting) return;
+  injecting = true;
+  refreshActionState();
   try {
     const status = await window.pulse.getStatus();
     if (status.state === "connected") {
       applyStatus(await window.pulse.disconnect());
       showToast("info", "Disconnected");
+      return;
+    }
+
+    if (!processLive) {
+      showToast("warn", `${targetProcessName()} is not running`);
       return;
     }
 
@@ -1018,7 +1136,8 @@ linkBtn.addEventListener("click", async () => {
       showToast("warn", "Injected, but the engine didn't respond — see console");
     }
   } finally {
-    linkBtn.disabled = false;
+    injecting = false;
+    refreshActionState();
   }
 });
 
@@ -1107,13 +1226,14 @@ let paletteActive = -1;
 let paletteMatches: PaletteAction[] = [];
 
 function staticPaletteActions(): PaletteAction[] {
-  const injectLabel = linkBtn.classList.contains("connected") ? "Disconnect" : "Inject";
+  const injectAction = lastStatus.state === "connected" ? "Disconnect" : "Inject";
   return [
     { id: "run", label: "Run script", hint: "Ctrl Enter", icon: ICON_RUN, run: () => btnRun.click() },
     { id: "tab", label: "New tab", hint: "Ctrl T", icon: ICON_TAB, run: () => createTab(`Script ${tabCounter + 1}`, "") },
-    { id: "inject", label: injectLabel, icon: ICON_LINK, run: () => linkBtn.click() },
-    { id: "console", label: "Toggle console", icon: ICON_CONSOLE, run: () => window.pulse.consoleToggleCollapse() },
-    { id: "settings", label: "Open settings", icon: ICON_SETTINGS, run: () => { settingsOverlay.dataset.open = "true"; } },
+    { id: "save", label: "Save to Workspace", hint: "Ctrl S", icon: ICON_FILE, run: () => saveActiveTab() },
+    { id: "inject", label: injectAction, icon: ICON_LINK, run: () => linkBtn.click() },
+    { id: "console", label: "Open console", icon: ICON_CONSOLE, run: () => window.pulse.consoleReveal() },
+    { id: "settings", label: "Open settings", hint: "Ctrl ,", icon: ICON_SETTINGS, run: () => { settingsOverlay.dataset.open = "true"; } },
   ];
 }
 
@@ -1131,10 +1251,33 @@ function scriptPaletteActions(): PaletteAction[] {
   }));
 }
 
+function appendPaletteSection(title: string, actions: PaletteAction[], startIndex: number): void {
+  if (actions.length === 0) return;
+  const label = document.createElement("div");
+  label.className = "palette-section-label";
+  label.textContent = title;
+  paletteList.appendChild(label);
+
+  actions.forEach((action, i) => {
+    const index = startIndex + i;
+    const el = document.createElement("div");
+    el.className = "palette-item" + (index === paletteActive ? " active" : "");
+    el.innerHTML = `<svg viewBox="0 0 14 14" stroke-width="1.5" fill="none">${action.icon}</svg><span class="palette-item-label"></span>${
+      action.hint ? `<span class="palette-item-hint"></span>` : ""
+    }`;
+    el.querySelector(".palette-item-label")!.textContent = action.label;
+    if (action.hint) el.querySelector(".palette-item-hint")!.textContent = action.hint;
+    el.addEventListener("mouseenter", () => setPaletteActive(index));
+    el.addEventListener("click", () => runPaletteAction(action));
+    paletteList.appendChild(el);
+  });
+}
+
 function renderPalette(): void {
   const query = paletteInput.value.trim().toLowerCase();
-  const all = [...staticPaletteActions(), ...scriptPaletteActions()];
-  paletteMatches = query ? all.filter((a) => a.label.toLowerCase().includes(query)) : all;
+  const commands = staticPaletteActions().filter((a) => !query || a.label.toLowerCase().includes(query));
+  const scripts = scriptPaletteActions().filter((a) => !query || a.label.toLowerCase().includes(query));
+  paletteMatches = [...commands, ...scripts];
   paletteActive = paletteMatches.length > 0 ? 0 : -1;
 
   paletteList.innerHTML = "";
@@ -1146,23 +1289,15 @@ function renderPalette(): void {
     return;
   }
 
-  paletteMatches.forEach((action, i) => {
-    const el = document.createElement("div");
-    el.className = "palette-item" + (i === paletteActive ? " active" : "");
-    el.innerHTML = `<svg viewBox="0 0 14 14" stroke-width="1.5" fill="none">${action.icon}</svg><span class="palette-item-label"></span>${
-      action.hint ? `<span class="palette-item-hint"></span>` : ""
-    }`;
-    el.querySelector(".palette-item-label")!.textContent = action.label;
-    if (action.hint) el.querySelector(".palette-item-hint")!.textContent = action.hint;
-    el.addEventListener("mouseenter", () => setPaletteActive(i));
-    el.addEventListener("click", () => runPaletteAction(action));
-    paletteList.appendChild(el);
-  });
+  appendPaletteSection("Commands", commands, 0);
+  appendPaletteSection("Scripts", scripts, commands.length);
 }
 
 function setPaletteActive(index: number): void {
   paletteActive = index;
-  paletteList.querySelectorAll(".palette-item").forEach((el, i) => el.classList.toggle("active", i === index));
+  const items = paletteList.querySelectorAll(".palette-item");
+  items.forEach((el, i) => el.classList.toggle("active", i === index));
+  items[index]?.scrollIntoView({ block: "nearest" });
 }
 
 function runPaletteAction(action: PaletteAction): void {
@@ -1219,14 +1354,32 @@ window.addEventListener("keydown", (e) => {
     else openPalette();
   } else if (ctrlOrCmd && e.key === "Enter") {
     e.preventDefault();
-    btnRun.click();
+    if (!btnRun.disabled) btnRun.click();
+  } else if (ctrlOrCmd && e.key.toLowerCase() === "s") {
+    e.preventDefault();
+    saveActiveTab();
   } else if (ctrlOrCmd && e.key.toLowerCase() === "t") {
     e.preventDefault();
     createTab(`Script ${tabCounter + 1}`, "");
   } else if (ctrlOrCmd && e.key.toLowerCase() === "w") {
     e.preventDefault();
     if (activeTabId) closeTab(activeTabId);
+  } else if (ctrlOrCmd && e.key === ",") {
+    e.preventDefault();
+    settingsOverlay.dataset.open = "true";
+  } else if (ctrlOrCmd && e.key === "Tab") {
+    e.preventDefault();
+    if (tabs.length < 2) return;
+    const idx = tabs.findIndex((t) => t.id === activeTabId);
+    const next = e.shiftKey
+      ? (idx - 1 + tabs.length) % tabs.length
+      : (idx + 1) % tabs.length;
+    switchTab(tabs[next].id);
   } else if (e.key === "Escape") {
+    if (confirmResolver) {
+      settleConfirm(false);
+      return;
+    }
     if (isPaletteOpen()) closePalette();
     settingsOverlay.dataset.open = "false";
   }
@@ -1248,5 +1401,24 @@ try {
   createTab("Script 1", DEFAULT_SCRIPT);
 }
 
+function dismissSplash(): void {
+  const splash = document.getElementById("splash");
+  if (!splash || splash.classList.contains("done")) return;
+  const tag = document.getElementById("splash-tag");
+  if (tag) tag.textContent = "Ready";
+  window.setTimeout(() => {
+    splash.classList.add("done");
+    window.setTimeout(() => splash.remove(), 600);
+  }, 180);
+}
+
 updateBreadcrumb();
+refreshActionState();
 pollProcessLive();
+
+document.getElementById("btn-console")?.addEventListener("click", () => {
+  window.pulse.consoleReveal();
+});
+
+const splashElapsed = performance.now() - splashStarted;
+window.setTimeout(dismissSplash, Math.max(0, 1500 - splashElapsed));
